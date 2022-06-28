@@ -1,7 +1,12 @@
 use actix_web::{get, post, delete, App, HttpResponse, HttpServer, Responder};
 use log::{info, LevelFilter};
-use crate::logger::Logger;
+use envconfig::Envconfig;
+use dotenv::dotenv;
+
+use logger::Logger;
+use config::Config;
 mod logger;
+mod config;
 
 #[get("/api/traders/{id}/orders")]
 async fn get_orders() -> impl Responder {
@@ -38,6 +43,8 @@ fn init_logger() {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
+    let config = Config::init_from_env().expect("Load config failed");
     init_logger();
     info!("Server is starting...");
     HttpServer::new(|| {
@@ -47,7 +54,7 @@ async fn main() -> std::io::Result<()> {
             .service(delete_order)
             .service(get_trades)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((config.host, config.port))?
     .run()
     .await
 }
