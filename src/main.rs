@@ -191,6 +191,7 @@ async fn main() -> std::io::Result<()> {
         .max_connections(5)
         .connect(&config.database_url).await.unwrap();
     let service = Service::new(&pool).await;
+    info!("Listening on {}:{}", config.host, config.port);
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(service.clone()))

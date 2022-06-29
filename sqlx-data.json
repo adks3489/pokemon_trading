@@ -1,3 +1,234 @@
 {
-  "db": "PostgreSQL"
+  "db": "PostgreSQL",
+  "00eb35b0e5b82bec9d43debf0f92b93d122beac64ba844ab172de39a4db4dcce": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "card_id",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "price",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "side",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "status",
+          "ordinal": 4,
+          "type_info": "Int2"
+        },
+        {
+          "name": "trader_id",
+          "ordinal": 5,
+          "type_info": "Int8"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 6,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT * FROM orders WHERE trader_id = $1 ORDER BY created_at DESC LIMIT $2"
+  },
+  "33d9eadf1db5ea3a4b2e0dd16457b791bf24f98865d846b90fcb8277476d9403": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "side",
+          "ordinal": 1,
+          "type_info": "Int2"
+        },
+        {
+          "name": "price",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "card_id",
+          "ordinal": 3,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Int2"
+        ]
+      }
+    },
+    "query": "SELECT id, side, price, card_id FROM orders WHERE status = 0 AND card_id = $1 AND side = $2"
+  },
+  "55e7e77612938b969de2a13c8c468bb48aaf6e4650061f539f697fc9216e983a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT id FROM orders ORDER BY id DESC LIMIT 1"
+  },
+  "60d2a9e780b9a0bd140d26865c3883b93530d67ddfa527caec0d7eba145c8875": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "card_id",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "price",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "buyorder_id",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "sellorder_id",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 5,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT * FROM trades WHERE card_id = $1 ORDER BY created_at DESC LIMIT $2"
+  },
+  "6c032be25bd90a17fbd6a31605c0b12a1359de0fa3b01bce4ec2dd3e8a0edc04": {
+    "describe": {
+      "columns": [
+        {
+          "name": "exists",
+          "ordinal": 0,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT exists(select 1 FROM traders WHERE id = $1 LIMIT 1)"
+  },
+  "7f548ce874caf911101fe7da67ef40480763f377c930cf6f5c524108f8b54f4a": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int2",
+          "Int8"
+        ]
+      }
+    },
+    "query": "UPDATE orders SET status = $1 WHERE id = $2"
+  },
+  "e95f75c44c1f8e288cf6790af2ac284e39fc5fa38a339973d8dc848cf5010412": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Int4",
+          "Int8",
+          "Int8"
+        ]
+      }
+    },
+    "query": "INSERT INTO trades (card_id, price, buyorder_id, sellorder_id) VALUES ($1, $2, $3, $4)"
+  },
+  "fc695aa438f75283efbc744883e9188a3d9d119c745a7a100bed47a93035a726": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int4",
+          "Int4",
+          "Int2",
+          "Int2",
+          "Int8",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "INSERT INTO orders (id, card_id, price, side, status, trader_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
+  }
 }
