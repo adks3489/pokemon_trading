@@ -96,24 +96,6 @@
     },
     "query": "SELECT id, side, price, card_id FROM orders WHERE status = 0 AND card_id = $1 AND side = $2"
   },
-  "55e7e77612938b969de2a13c8c468bb48aaf6e4650061f539f697fc9216e983a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT id FROM orders ORDER BY id DESC LIMIT 1"
-  },
   "60d2a9e780b9a0bd140d26865c3883b93530d67ddfa527caec0d7eba145c8875": {
     "describe": {
       "columns": [
@@ -198,6 +180,31 @@
     },
     "query": "UPDATE orders SET status = $1 WHERE id = $2"
   },
+  "b363e2aafb18cca199f2924a6e99a4fe2b3360a75e4012e1dcd02991aea9efdb": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Int4",
+          "Int2",
+          "Int2",
+          "Int8",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "INSERT INTO orders (card_id, price, side, status, trader_id, created_at) VALUES ($1, $2, $3, $4, $5, $6) returning id;"
+  },
   "e95f75c44c1f8e288cf6790af2ac284e39fc5fa38a339973d8dc848cf5010412": {
     "describe": {
       "columns": [],
@@ -212,23 +219,5 @@
       }
     },
     "query": "INSERT INTO trades (card_id, price, buyorder_id, sellorder_id) VALUES ($1, $2, $3, $4)"
-  },
-  "fc695aa438f75283efbc744883e9188a3d9d119c745a7a100bed47a93035a726": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int4",
-          "Int4",
-          "Int2",
-          "Int2",
-          "Int8",
-          "Timestamptz"
-        ]
-      }
-    },
-    "query": "INSERT INTO orders (id, card_id, price, side, status, trader_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
   }
 }

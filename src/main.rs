@@ -69,68 +69,57 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
         return HttpResponse::BadRequest().body("Trader does not exist");
     }
 
+    let r = order_store::insert_order(&db_pool, order_store::NewOrder{
+        card_id: req_body.card_id,
+        price: req_body.price,
+        side: side.clone() as i16,
+        status: order_store::Status::Pending as i16,
+        trader_id,
+        created_at: Utc::now(),
+    }).await;
+    if let Err(e) = r {
+        error!("Failed to insert order: {}", e);
+        return HttpResponse::InternalServerError().body("Failed to insert order");
+    }
+    let order_id = r.unwrap();
+
     let mut order_manager = app.order_manager.lock().unwrap();
-    let order_id = order_manager.take_id();
     let filled_order = order_manager.add_order(order_manager::PendingOrder {
         id: order_id,
-        side: side.clone(),
+        side: side,
         price: req_body.price,
         card_id: req_body.card_id,
     });
-    match filled_order {
-        Some(order) => {
-            let transaction = db_pool.begin().await;
-            let transaction = match transaction {
-                Ok(transaction) => transaction,
-                Err(e) => {
-                    error!("Failed to begin transaction: {}", e);
-                    return HttpResponse::InternalServerError().body("Failed to finish order");
-                }
-            };
-            let r = order_store::insert_order(&db_pool, order_store::Order{
-                id: order_id,
-                card_id: req_body.card_id,
-                price: req_body.price,
-                side: side as i16,
-                status: order_store::Status::Filled as i16,
-                trader_id,
-                created_at: Utc::now(),
-            }).await;
-            if let Err(e) = r {
-                error!("Failed to insert order: {}", e);
-                return HttpResponse::InternalServerError().body("Failed to insert order");
-            }
-            let r = order_store::update_order_status(&db_pool, order.first_order_id, order_store::Status::Filled).await;            
-            if let Err(e) = r {
-                error!("Failed to update order status: {}", e);
-                return HttpResponse::InternalServerError().body("Failed to update order status");
-            }
-            let r = trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await;
-            if let Err(e) = r {
-                error!("Failed to insert trade: {}", e);
-                return HttpResponse::InternalServerError().body("Failed to insert trade");
-            }
-            let r = transaction.commit().await;
-            if let Err(e) = r {
-                error!("Failed to commit transaction: {}", e);
+
+    if let Some(order) = filled_order {
+        let transaction = db_pool.begin().await;
+        let transaction = match transaction {
+            Ok(transaction) => transaction,
+            Err(e) => {
+                error!("Failed to begin transaction: {}", e);
                 return HttpResponse::InternalServerError().body("Failed to finish order");
             }
-        },
-        None => {
-            let r = order_store::insert_order(&db_pool, order_store::Order{
-                id: order_id,
-                card_id: req_body.card_id,
-                price: req_body.price,
-                side: side as i16,
-                status: order_store::Status::Pending as i16,
-                trader_id,
-                created_at: Utc::now(),
-            }).await;
-            if let Err(e) = r {
-                error!("Failed to insert order: {}", e);
-                return HttpResponse::InternalServerError().body("Failed to insert order");
-            }
-        },
+        };
+        let r = order_store::update_order_status(&db_pool, order_id, order_store::Status::Filled).await;
+        if let Err(e) = r {
+            error!("Failed to update order status: {}", e);
+            return HttpResponse::InternalServerError().body("Failed to update order status");
+        }
+        let r = order_store::update_order_status(&db_pool, order.first_order_id, order_store::Status::Filled).await;            
+        if let Err(e) = r {
+            error!("Failed to update order status: {}", e);
+            return HttpResponse::InternalServerError().body("Failed to update order status");
+        }
+        let r = trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await;
+        if let Err(e) = r {
+            error!("Failed to insert trade: {}", e);
+            return HttpResponse::InternalServerError().body("Failed to insert trade");
+        }
+        let r = transaction.commit().await;
+        if let Err(e) = r {
+            error!("Failed to commit transaction: {}", e);
+            return HttpResponse::InternalServerError().body("Failed to finish order");
+        }
     }
     HttpResponse::Ok().body("")
 }

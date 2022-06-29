@@ -1,5 +1,5 @@
 CREATE TABLE orders (
-  "id" bigint PRIMARY KEY,
+  "id" bigint GENERATED always AS IDENTITY PRIMARY KEY,
   "card_id" int NOT NULL,
   "price" int NOT NULL,
   "side" smallint NOT NULL,

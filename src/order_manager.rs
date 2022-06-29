@@ -148,17 +148,14 @@ impl FilledOrder {
 
 // TODO: may use threads per card to increase performance
 pub struct OrderManager {
-    order_books: Vec<OrderBook>,
-    // TODO: let id decide by db, to support multiple manager
-    last_id: i64,
+    order_books: Vec<OrderBook>
 }
 
 impl OrderManager {
     #[allow(dead_code)]
     pub fn new() -> Self {
         OrderManager {
-            order_books: (0..card::NUM_CARDS).map(|_| OrderBook::new()).collect(),
-            last_id: 0,
+            order_books: (0..card::NUM_CARDS).map(|_| OrderBook::new()).collect()
         }
     }
     pub async fn from_db(db_pool: &order_store::DbPool) -> Self {
@@ -171,16 +168,9 @@ impl OrderManager {
             let order_book = OrderBook::from_db(bids.unwrap(), asks.unwrap());
             order_books.push(order_book);
         }
-        let last_id = order_store::query_last_id(db_pool).await.unwrap().id;
         OrderManager {
-            order_books,
-            last_id,
+            order_books
         }
-    }
-
-    pub fn take_id(&mut self) -> i64 {
-        self.last_id += 1;
-        self.last_id
     }
     pub fn add_order(&mut self, order: PendingOrder) -> Option<FilledOrder> {
         let matched_order = self.order_books[order.card_id as usize].try_match(&order);
