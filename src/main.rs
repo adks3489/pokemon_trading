@@ -15,6 +15,7 @@ mod order_manager;
 mod logger;
 mod config;
 mod order_store;
+mod trades_store;
 
 #[get("/api/traders/{id}/orders")]
 async fn get_orders(db_pool: web::Data<order_store::DbPool>, path: web::Path<i64>) -> impl Responder {
@@ -75,7 +76,7 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
                 error!("Failed to update order status: {}", e);
                 return HttpResponse::InternalServerError().body("Failed to update order status");
             }
-            // TODO: insert trades
+            trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await.unwrap();
             transaction.commit().await.unwrap();
         },
         None => {
@@ -105,9 +106,13 @@ async fn delete_order() -> impl Responder {
 }
 
 #[get("/api/cards/{id}/trades")]
-async fn get_trades() -> impl Responder {
-    // TODO:
-    HttpResponse::Ok().body("[]")
+async fn get_trades(db_pool: web::Data<trades_store::DbPool>, path: web::Path<i32>) -> impl Responder {
+    let card_id = path.into_inner();    
+    if !card::is_valid(card_id) {
+        return HttpResponse::NotFound().body("Card not found");
+    }
+    let r = trades_store::query_trades(&db_pool, card_id, Some(50)).await.unwrap();
+    HttpResponse::Ok().json(r)
 }
 
 fn init_logger() {
