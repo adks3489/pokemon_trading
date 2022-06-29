@@ -14,15 +14,28 @@ mod card;
 mod order_manager;
 mod logger;
 mod config;
+mod traders_store;
 mod order_store;
 mod trades_store;
 
 #[get("/api/traders/{id}/orders")]
 async fn get_orders(db_pool: web::Data<order_store::DbPool>, path: web::Path<i64>) -> impl Responder {
-    // TODO: check trader id exist
-    let trader_id = path.into_inner();
-    let r = order_store::query_orders(&db_pool, trader_id, Some(50)).await.unwrap();
-    HttpResponse::Ok().json(r)
+    let trader_id = path.into_inner();    
+    let is_trader_exist = traders_store::is_exist(&db_pool, trader_id).await;
+    if is_trader_exist.is_none() {
+        return HttpResponse::InternalServerError().body("Failed to query trader");
+    }
+    if !is_trader_exist.unwrap() {
+        return HttpResponse::BadRequest().body("Trader does not exist");
+    }
+    let r = order_store::query_orders(&db_pool, trader_id, Some(50)).await;
+    match r {
+        Ok(orders) => HttpResponse::Ok().json(orders),
+        Err(e) => {
+            error!("Failed to query orders: {}", e);
+            HttpResponse::InternalServerError().body("Failed to query orders")
+        },
+    }
 }
 
 #[derive(Deserialize)]
@@ -47,6 +60,15 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
     }
     let side = side.unwrap();
     info!("Received order request: {:?} card={} price={}", &side, &req_body.card_id, req_body.price);
+
+    let is_trader_exist = traders_store::is_exist(&db_pool, trader_id).await;
+    if is_trader_exist.is_none() {
+        return HttpResponse::InternalServerError().body("Failed to query trader");
+    }
+    if !is_trader_exist.unwrap() {
+        return HttpResponse::BadRequest().body("Trader does not exist");
+    }
+
     let mut order_manager = app.order_manager.lock().unwrap();
     let order_id = order_manager.take_id();
     let filled_order = order_manager.add_order(order_manager::PendingOrder {
@@ -57,7 +79,14 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
     });
     match filled_order {
         Some(order) => {
-            let transaction = db_pool.begin().await.unwrap();
+            let transaction = db_pool.begin().await;
+            let transaction = match transaction {
+                Ok(transaction) => transaction,
+                Err(e) => {
+                    error!("Failed to begin transaction: {}", e);
+                    return HttpResponse::InternalServerError().body("Failed to finish order");
+                }
+            };
             let r = order_store::insert_order(&db_pool, order_store::Order{
                 id: order_id,
                 card_id: req_body.card_id,
@@ -76,8 +105,16 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
                 error!("Failed to update order status: {}", e);
                 return HttpResponse::InternalServerError().body("Failed to update order status");
             }
-            trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await.unwrap();
-            transaction.commit().await.unwrap();
+            let r = trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await;
+            if let Err(e) = r {
+                error!("Failed to insert trade: {}", e);
+                return HttpResponse::InternalServerError().body("Failed to insert trade");
+            }
+            let r = transaction.commit().await;
+            if let Err(e) = r {
+                error!("Failed to commit transaction: {}", e);
+                return HttpResponse::InternalServerError().body("Failed to finish order");
+            }
         },
         None => {
             let r = order_store::insert_order(&db_pool, order_store::Order{
@@ -111,8 +148,14 @@ async fn get_trades(db_pool: web::Data<trades_store::DbPool>, path: web::Path<i3
     if !card::is_valid(card_id) {
         return HttpResponse::NotFound().body("Card not found");
     }
-    let r = trades_store::query_trades(&db_pool, card_id, Some(50)).await.unwrap();
-    HttpResponse::Ok().json(r)
+    let r = trades_store::query_trades(&db_pool, card_id, Some(50)).await;
+    match r {
+        Ok(r) => HttpResponse::Ok().json(r),
+        Err(e) => {
+            error!("Failed to query trades: {}", e);
+            HttpResponse::InternalServerError().body("Failed to query trades")
+        },
+    }
 }
 
 fn init_logger() {
