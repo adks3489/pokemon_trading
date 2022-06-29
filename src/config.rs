@@ -7,4 +7,7 @@ pub struct Config {
 
   #[envconfig(from = "PORT", default = "8080")]
   pub port: u16,
+
+  #[envconfig(from = "DATABASE_URL")]
+  pub database_url: String,
 }
