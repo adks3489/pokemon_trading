@@ -158,6 +158,11 @@ async fn get_trades(db_pool: web::Data<trades_store::DbPool>, path: web::Path<i3
     }
 }
 
+#[get("/api/health")]
+async fn health() -> impl Responder {
+    HttpResponse::Ok().body("alive")
+}
+
 fn init_logger() {
     static LOGGER: Logger = Logger;
     log::set_max_level(LevelFilter::Info);
@@ -190,6 +195,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(service.clone()))
             .app_data(web::Data::new(pool.clone()))
+            .service(health)
             .service(get_orders)
             .service(add_order)
             .service(delete_order)
