@@ -14,6 +14,7 @@ mod config;
 mod trader_store;
 mod order_store;
 mod trade_store;
+mod graphql;
 
 use config::Config;
 use ports::{TraderStore, OrderStore, TradeStore, OrderService};
@@ -129,6 +130,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
+            .configure(|cfg| graphql::endpoint::configure(cfg, order_store.clone(), trade_store.clone()))
             .app_data(web::Data::new(order_service.clone()))
             .app_data(web::Data::new(trader_store.clone()))
             .app_data(web::Data::new(order_store.clone()))
@@ -138,6 +140,7 @@ async fn main() -> std::io::Result<()> {
             .service(add_order)
             .service(delete_order)
             .service(get_trades)
+            .wrap(actix_cors::Cors::permissive())
     })
     .bind((config.host, config.port))?
     .run()

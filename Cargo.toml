@@ -6,7 +6,9 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-cors = "0.6.1"
 actix-web = "4"
+actix-web-lab = "0.16.1"
 anyhow = "1.0"
 async-trait = "0.1.56"
 chrono = {version = "0.4", features = ["serde"]}
@@ -14,6 +16,8 @@ dotenv = "0.15.0"
 env_logger = "0.9.0"
 envconfig = "0.10.0"
 futures = "0.3.21"
+graphql-int64-scalar = "0.3.4"
+juniper = "0.15.9"
 log = "0.4"
 mockall = "0.11.1"
 serde = {version = "1.0", features = ["derive"]}
