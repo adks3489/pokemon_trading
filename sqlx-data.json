@@ -147,26 +147,6 @@
     },
     "query": "SELECT * FROM trades WHERE card_id = $1 ORDER BY created_at DESC LIMIT $2"
   },
-  "6c032be25bd90a17fbd6a31605c0b12a1359de0fa3b01bce4ec2dd3e8a0edc04": {
-    "describe": {
-      "columns": [
-        {
-          "name": "exists",
-          "ordinal": 0,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      }
-    },
-    "query": "SELECT exists(select 1 FROM traders WHERE id = $1 LIMIT 1)"
-  },
   "7f548ce874caf911101fe7da67ef40480763f377c930cf6f5c524108f8b54f4a": {
     "describe": {
       "columns": [],
@@ -219,5 +199,25 @@
       }
     },
     "query": "INSERT INTO trades (card_id, price, buyorder_id, sellorder_id) VALUES ($1, $2, $3, $4)"
+  },
+  "ef2718991f5f6d5ad88b747f00c335cad3c5c7ddf349f29a1ed9bb8a4137d59b": {
+    "describe": {
+      "columns": [
+        {
+          "name": "exists",
+          "ordinal": 0,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT EXISTS (SELECT 1 FROM traders WHERE id = $1 LIMIT 1)"
   }
 }
