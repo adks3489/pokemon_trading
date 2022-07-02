@@ -1,23 +1,8 @@
 use std::{collections::{BTreeMap, VecDeque}};
 use futures::future;
 
-use crate::{card, order_store};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(i16)]
-pub enum Action {
-    Buy = 0,
-    Sell = 1,
-}
-impl Action {
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "buy" => Some(Action::Buy),
-            "sell" => Some(Action::Sell),
-            _ => None,
-        }
-    }
-}
+use crate::{card};
+use crate::ports::{Action, self, OrderStore};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PendingOrder {
@@ -42,7 +27,7 @@ impl OrderBook {
             asks: BTreeMap::new()
         }
     }
-    fn from_db(bids: Vec<order_store::PendingOrder>, asks: Vec<order_store::PendingOrder>) -> Self {
+    fn from_db(bids: Vec<ports::PendingOrder>, asks: Vec<ports::PendingOrder>) -> Self {
         let mut bids_tree = BTreeMap::new();
         bids.iter().for_each(|bid| {
             let price_bucket = bids_tree.entry(bid.price).or_insert(PriceBucket::new());
@@ -158,12 +143,12 @@ impl OrderManager {
             order_books: (0..card::NUM_CARDS).map(|_| OrderBook::new()).collect()
         }
     }
-    pub async fn from_db(db_pool: &order_store::DbPool) -> Self {
+    pub async fn from_db(order_sotre: &impl OrderStore) -> Self {
         let mut order_books = Vec::new();
         // TODO: join all futures from all cards
         for card_id in 0..card::NUM_CARDS {
-            let bids = order_store::query_pending_orders(db_pool, card_id as i32, 0);
-            let asks = order_store::query_pending_orders(db_pool, card_id as i32, 1);
+            let bids = order_sotre.query_pending_orders(card_id as i32, 0);
+            let asks = order_sotre.query_pending_orders(card_id as i32, 1);
             let (bids, asks) = future::join(bids, asks).await;
             let order_book = OrderBook::from_db(bids.unwrap(), asks.unwrap());
             order_books.push(order_book);

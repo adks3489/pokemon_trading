@@ -1,34 +1,37 @@
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc};
 use actix_web::{web, get, post, delete, App, HttpResponse, HttpServer, Responder};
-use log::{info, LevelFilter, error};
+use log::{info, error};
 use envconfig::Envconfig;
 use dotenv::dotenv;
 use sqlx::{postgres::PgPoolOptions};
-use chrono::Utc;
-
-use logger::Logger;
-use config::Config;
-use order_manager::OrderManager;
 use serde::Deserialize;
+
+mod ports;
+mod order_service;
 mod card;
 mod order_manager;
-mod logger;
 mod config;
-mod traders_store;
+mod trader_store;
 mod order_store;
-mod trades_store;
+mod trade_store;
+
+use config::Config;
+use ports::{TraderStore, OrderStore, TradeStore, OrderService};
+use trader_store::PostgresTraderStoreImpl;
+use order_store::PostgresOrderStoreImpl;
+use trade_store::PostgresTradeStoreImpl;
 
 #[get("/api/traders/{id}/orders")]
-async fn get_orders(db_pool: web::Data<order_store::DbPool>, path: web::Path<i64>) -> impl Responder {
-    let trader_id = path.into_inner();    
-    let is_trader_exist = traders_store::is_exist(&db_pool, trader_id).await;
+async fn get_orders(order_store: web::Data<PostgresOrderStoreImpl>, trader_store: web::Data<PostgresTraderStoreImpl>, path: web::Path<i64>) -> impl Responder {
+    let trader_id = path.into_inner();
+    let is_trader_exist = trader_store.is_exist(trader_id).await;
     if is_trader_exist.is_none() {
         return HttpResponse::InternalServerError().body("Failed to query trader");
     }
     if !is_trader_exist.unwrap() {
         return HttpResponse::BadRequest().body("Trader does not exist");
     }
-    let r = order_store::query_orders(&db_pool, trader_id, Some(50)).await;
+    let r = order_store.query_orders(trader_id, Some(50)).await;
     match r {
         Ok(orders) => HttpResponse::Ok().json(orders),
         Err(e) => {
@@ -44,11 +47,16 @@ struct OrderRequest {
     price: i32,
     card_id: i32,
 }
+
+type OrderServiceImpl = order_service::OrderServiceImpl<
+    trader_store::PostgresTraderStoreImpl,
+    order_store::PostgresOrderStoreImpl,
+    trade_store::PostgresTradeStoreImpl>;
+
 #[post("/api/traders/{id}/orders")]
-async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPool>, path: web::Path<i64>, req_body: web::Json<OrderRequest>) -> impl Responder {
-    // TODO: check trader id exist
+async fn add_order(order_service: web::Data<OrderServiceImpl>, path: web::Path<i64>, req_body: web::Json<OrderRequest>) -> impl Responder {
     let trader_id = path.into_inner();
-    let side = order_manager::Action::from_str(&req_body.side);
+    let side = ports::Action::from_str(&req_body.side);
     if side.is_none() {
         return HttpResponse::BadRequest().body("Invalid order side");
     }
@@ -61,67 +69,16 @@ async fn add_order(app: web::Data<Service>, db_pool: web::Data<order_store::DbPo
     let side = side.unwrap();
     info!("Received order request: {:?} card={} price={}", &side, &req_body.card_id, req_body.price);
 
-    let is_trader_exist = traders_store::is_exist(&db_pool, trader_id).await;
-    if is_trader_exist.is_none() {
-        return HttpResponse::InternalServerError().body("Failed to query trader");
+    let r = order_service.add_order(trader_id, side, req_body.price, req_body.card_id).await;
+    match r {
+        Ok(_) => {
+            HttpResponse::Ok().body("")
+        },
+        Err(e) => {
+            error!("Failed to add order: {}", e);
+            HttpResponse::InternalServerError().body("Failed to add order")
+        },
     }
-    if !is_trader_exist.unwrap() {
-        return HttpResponse::BadRequest().body("Trader does not exist");
-    }
-
-    let r = order_store::insert_order(&db_pool, order_store::NewOrder{
-        card_id: req_body.card_id,
-        price: req_body.price,
-        side: side.clone() as i16,
-        status: order_store::Status::Pending as i16,
-        trader_id,
-        created_at: Utc::now(),
-    }).await;
-    if let Err(e) = r {
-        error!("Failed to insert order: {}", e);
-        return HttpResponse::InternalServerError().body("Failed to insert order");
-    }
-    let order_id = r.unwrap();
-
-    let mut order_manager = app.order_manager.lock().unwrap();
-    let filled_order = order_manager.add_order(order_manager::PendingOrder {
-        id: order_id,
-        side: side,
-        price: req_body.price,
-        card_id: req_body.card_id,
-    });
-
-    if let Some(order) = filled_order {
-        let transaction = db_pool.begin().await;
-        let transaction = match transaction {
-            Ok(transaction) => transaction,
-            Err(e) => {
-                error!("Failed to begin transaction: {}", e);
-                return HttpResponse::InternalServerError().body("Failed to finish order");
-            }
-        };
-        let r = order_store::update_order_status(&db_pool, order_id, order_store::Status::Filled).await;
-        if let Err(e) = r {
-            error!("Failed to update order status: {}", e);
-            return HttpResponse::InternalServerError().body("Failed to update order status");
-        }
-        let r = order_store::update_order_status(&db_pool, order.first_order_id, order_store::Status::Filled).await;            
-        if let Err(e) = r {
-            error!("Failed to update order status: {}", e);
-            return HttpResponse::InternalServerError().body("Failed to update order status");
-        }
-        let r = trades_store::insert_trade(&db_pool, order.card_id, order.price, order.buy_order, order.sell_order).await;
-        if let Err(e) = r {
-            error!("Failed to insert trade: {}", e);
-            return HttpResponse::InternalServerError().body("Failed to insert trade");
-        }
-        let r = transaction.commit().await;
-        if let Err(e) = r {
-            error!("Failed to commit transaction: {}", e);
-            return HttpResponse::InternalServerError().body("Failed to finish order");
-        }
-    }
-    HttpResponse::Ok().body("")
 }
 
 #[delete("/api/traders/{id}/orders/{order_id}")]
@@ -132,12 +89,12 @@ async fn delete_order() -> impl Responder {
 }
 
 #[get("/api/cards/{id}/trades")]
-async fn get_trades(db_pool: web::Data<trades_store::DbPool>, path: web::Path<i32>) -> impl Responder {
+async fn get_trades(trade_store: web::Data<PostgresTradeStoreImpl>, path: web::Path<i32>) -> impl Responder {
     let card_id = path.into_inner();    
     if !card::is_valid(card_id) {
         return HttpResponse::NotFound().body("Card not found");
     }
-    let r = trades_store::query_trades(&db_pool, card_id, Some(50)).await;
+    let r = trade_store.query_trades(card_id, Some(50)).await;
     match r {
         Ok(r) => HttpResponse::Ok().json(r),
         Err(e) => {
@@ -152,39 +109,29 @@ async fn health() -> impl Responder {
     HttpResponse::Ok().body("alive")
 }
 
-fn init_logger() {
-    static LOGGER: Logger = Logger;
-    log::set_max_level(LevelFilter::Info);
-    log::set_logger(&LOGGER).unwrap();
-}
-
-#[derive(Clone)]
-struct Service {
-    order_manager: Arc<Mutex<OrderManager>>,
-}
-impl Service {
-    async fn new(db_pool: &order_store::DbPool) -> Self {
-        Service {
-            order_manager: Arc::new(Mutex::new(OrderManager::from_db(db_pool).await)),
-        }
-    }
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
+    env_logger::init();
     let config = Config::init_from_env().expect("Load config failed");
-    init_logger();
     info!("Server is starting...");
-    let pool = PgPoolOptions::new()
+    let pool = Arc::new(PgPoolOptions::new()
         .max_connections(5)
-        .connect(&config.database_url).await.unwrap();
-    let service = Service::new(&pool).await;
+        .connect(&config.database_url).await.unwrap());
+
+    let trader_store = trader_store::PostgresTraderStoreImpl{pg_pool: pool.clone()};
+    let order_store = order_store::PostgresOrderStoreImpl{pg_pool: pool.clone()};
+    let trade_store = trade_store::PostgresTradeStoreImpl{pg_pool: pool.clone()};
+    let order_service = order_service::OrderServiceImpl::new(
+        trader_store.clone(), order_store.clone(), trade_store.clone()).await;
+
     info!("Listening on {}:{}", config.host, config.port);
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(service.clone()))
-            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(order_service.clone()))
+            .app_data(web::Data::new(trader_store.clone()))
+            .app_data(web::Data::new(order_store.clone()))
+            .app_data(web::Data::new(trade_store.clone()))
             .service(health)
             .service(get_orders)
             .service(add_order)
