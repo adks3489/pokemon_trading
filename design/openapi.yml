@@ -1,0 +1,137 @@
+openapi: 3.0.0
+info:
+  title: PokemonTrading
+  version: "1.0"
+  description: This is a trading platform of Pokemon Trading Card Game.
+servers:
+  - url: "http://localhost:3000"
+paths:
+  "/api/traders/{traderId}/orders":
+    parameters:
+      - schema:
+          type: integer
+        name: traderId
+        in: path
+        required: true
+    get:
+      summary: Query orders
+      tags: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Orders"
+              examples:
+                example-1:
+                  value:
+                    - id: 1
+                      card_id: 0
+                      price: 100
+                      side: 0
+                      status: 1
+                      trader_id: 2
+                      created_at: "2022-06-29T14:49:10.153423Z"
+        "400":
+          description: "Bad Request, Invalid argument"
+      operationId: get-traders-traderId-orders
+    post:
+      summary: Send a new order
+      operationId: post-api-traders-traderId-orders
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+                description: OrderId
+        "400":
+          description: "Bad Request, Invalid argument"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              x-examples:
+                example-1:
+                  card_id: 0
+                  side: sell
+                  price: 100
+              properties:
+                card_id:
+                  type: integer
+                side:
+                  type: string
+                  enum:
+                    - buy
+                    - sell
+                price:
+                  type: integer
+                  minimum: 100
+                  format: int32
+                  description: "Order Price, unit: cent"
+                  maximum: 1000
+  "/api/cards/{id}/trades":
+    parameters:
+      - schema:
+          type: string
+        name: id
+        in: path
+        required: true
+        description: Card Id
+    get:
+      summary: Get latest trades
+      tags: []
+      responses:
+        "200":
+          description: OK
+          headers: {}
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+        "400":
+          description: "Bad Request, Invalid argument"
+      operationId: get-api-cards-id-trades
+components:
+  schemas:
+    Orders:
+      title: Orders
+      x-stoplight:
+        id: cuz23kr22bpn7
+      type: array
+      items:
+        $ref: "#/components/schemas/Order"
+    Order:
+      title: Order
+      x-stoplight:
+        id: 46ff2p7lfv3wb
+      type: object
+      properties:
+        id:
+          type: integer
+        cardId:
+          type: integer
+        price:
+          type: integer
+          description: "Order Price, Unit: cent"
+        side:
+          type: integer
+          description: Buy(0)/Sell(1) Direction
+          enum:
+            - 0
+            - 1
+        status:
+          type: integer
+          description: "Order Status: Pending(0)/Matched(1)"
+          enum:
+            - 0
+            - 1
+        traderId:
+          type: integer
+        createdAt:
+          type: string
+  securitySchemes: {}
