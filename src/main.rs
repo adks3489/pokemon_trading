@@ -1,5 +1,5 @@
 use std::sync::{Arc};
-use actix_web::{web, get, post, delete, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, get, post, delete, App, HttpResponse, HttpServer, Responder, middleware};
 use log::{info, error};
 use envconfig::Envconfig;
 use dotenv::dotenv;
@@ -128,6 +128,7 @@ async fn main() -> std::io::Result<()> {
     info!("Listening on {}:{}", config.host, config.port);
     HttpServer::new(move || {
         App::new()
+            .wrap(middleware::Logger::default())
             .app_data(web::Data::new(order_service.clone()))
             .app_data(web::Data::new(trader_store.clone()))
             .app_data(web::Data::new(order_store.clone()))
