@@ -5,7 +5,7 @@ CREATE TABLE traders (
   "created_at" timestamp WITH time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE orders (
-  "id" bigint PRIMARY KEY,
+  "id" bigint GENERATED always AS IDENTITY PRIMARY KEY,
   "card_id" int NOT NULL,
   "price" int NOT NULL,
   "side" smallint NOT NULL,
@@ -21,3 +21,11 @@ CREATE TABLE trades (
   "sellorder_id" bigint NOT NULL REFERENCES orders(id),
   "created_at" timestamp WITH time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+do $$
+BEGIN
+for r in 1..10000 LOOP
+INSERT INTO traders DEFAULT VALUES;
+END LOOP;
+END;
+$$;
